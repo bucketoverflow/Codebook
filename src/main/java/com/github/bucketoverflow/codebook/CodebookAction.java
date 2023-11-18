@@ -1,5 +1,18 @@
 package com.github.bucketoverflow.codebook;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.StringReader;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.concurrent.CompletableFuture;
+
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
@@ -15,6 +28,8 @@ import javax.swing.*;
 import com.intellij.openapi.actionSystem.AnAction;
 
 public class CodebookAction extends AnAction {
+
+    private final String apiKey = "insertKeyHere";
     @Override
     public @NotNull ActionUpdateThread getActionUpdateThread() {
         return ActionUpdateThread.BGT;
@@ -45,20 +60,28 @@ public class CodebookAction extends AnAction {
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent event) {
-        // Using the event, create and show a dialog
         Project currentProject = event.getProject();
-        StringBuilder message =
-                new StringBuilder(event.getPresentation().getText() + " Selected!");
-        // If an element is selected in the editor, add info about it.
-        Navigatable selectedElement = event.getData(CommonDataKeys.NAVIGATABLE);
-        if (selectedElement != null) {
-            message.append("\nSelected Element: ").append(selectedElement);
-        }
-        String title = event.getPresentation().getDescription();
+        var completableFuture = CreateOpenAIRequest(currentProject);
+
+//        var message = "Sending request to ChatGPT...";
+//        String title = event.getPresentation().getDescription();
+//        Messages.showMessageDialog(
+//                currentProject,
+//                message,
+//                title,
+//                Messages.getInformationIcon());
+
+        var response = completableFuture.join();
+
+        int statusCode = response.statusCode();
+        var responseBody = response.body();
+
+        var responseContent = ProcessResponseBody(responseBody);
+
         Messages.showMessageDialog(
                 currentProject,
-                message.toString(),
-                title,
+                responseContent,
+                "ChatGPT Response",
                 Messages.getInformationIcon());
     }
 
@@ -67,5 +90,107 @@ public class CodebookAction extends AnAction {
         // Set the availability based on whether a project is open
         Project project = e.getProject();
         e.getPresentation().setEnabledAndVisible(project != null);
+    }
+
+    private CompletableFuture<HttpResponse<String>> CreateOpenAIRequest(Project project)
+    {
+        // ChatGPT API endpoint
+        URI chatGPTApiUri = URI.create("https://api.openai.com/v1/chat/completions");
+
+        // Sample prompt for ChatGPT
+        String prompt = "Translate the following English text to French: ";
+
+        // Build the request body
+        String requestBody = "{\"model\": " +
+                "\"gpt-3.5-turbo\", " +
+                "\"messages\": [{\"role\": \"system\", \"content\": \"You are a helpful assistant.\"}, " +
+                "{\"role\": \"user\", \"content\": \"" + prompt + "\"}]}";
+
+        // Create an HttpClient
+        HttpClient httpClient = HttpClient.newHttpClient();
+
+        // Create an HttpRequest
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(chatGPTApiUri)
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + apiKey)
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                .build();
+
+        // Send the request asynchronously
+        CompletableFuture<HttpResponse<String>> responseFuture = httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+
+        // Attach a callback to handle the response when it's available
+        responseFuture.thenAccept(response -> ResponseCallback(response, project));
+
+        return responseFuture;
+    }
+
+    private void ResponseCallback(HttpResponse<String> response, Project project)
+    {
+        int statusCode = response.statusCode();
+        String responseBody = response.body();
+        String responseContent = ProcessResponseBody(responseBody);
+
+        // Handle the response as needed
+        System.out.println("Status Code: " + statusCode);
+        System.out.println("Response Body: " + responseBody);
+
+        Messages.showMessageDialog(
+                project,
+                responseContent,
+                "ChatGPT Response 2",
+                Messages.getInformationIcon());
+    }
+
+    @SuppressWarnings("CallToPrintStackTrace")
+    private String ProcessResponseBody(String httpResponse)
+    {
+//        var stringreader = new StringReader(httpResponse);
+//        var bufferedStringReader = new BufferedReader(new StringReader(httpResponse));
+//        var responseContent = new StringBuilder();
+
+        var regex = "\"content\":\\s*\"(.*?)\"";
+        var pattern = Pattern.compile(regex);
+        var matcher = pattern.matcher(httpResponse);
+
+        if(matcher.find())
+        {
+            var matchedSubstring = matcher.group(1);
+            return matchedSubstring;
+        }
+        else
+            return "no response";
+
+//        int startIndex = httpResponse.indexOf("content");
+//        var substring = httpResponse.substring(startIndex+9);
+//        startIndex = substring.indexOf("\"\"");
+//        substring = substring.substring(0, startIndex);
+
+//        while (true)
+//        {
+//            try
+//            {
+//                var line = bufferedStringReader.readLine();
+//                bufferedStringReader.
+//                var reachedEndOfFile = line == null;
+//                if (reachedEndOfFile)
+//                    break;
+//
+//                if (line.contains("content"))
+//                {
+//                    responseContent.append(line);
+//                    bufferedStringReader.close();
+//                    break;
+//                }
+//
+//            }
+//            catch (IOException exception)
+//            {
+//                exception.printStackTrace();
+//            }
+//        }
+
+        // return substring;
     }
 }
