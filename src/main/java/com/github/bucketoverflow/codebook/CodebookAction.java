@@ -1,9 +1,9 @@
 package com.github.bucketoverflow.codebook;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.StringReader;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.io.*;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -15,16 +15,19 @@ import java.util.concurrent.CompletableFuture;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.intellij.openapi.actionSystem.ActionUpdateThread;
-import com.intellij.openapi.actionSystem.AnAction;
-import com.intellij.openapi.actionSystem.AnActionEvent;
-import com.intellij.openapi.actionSystem.CommonDataKeys;
+import com.intellij.lang.Language;
+import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.editor.Editor;
+import com.intellij.openapi.fileEditor.OpenFileDescriptor;
+import com.intellij.psi.PsiFileFactory;
+import com.intellij.psi.search.FilenameIndex;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.pom.Navigatable;
+import com.intellij.psi.search.GlobalSearchScope;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -35,6 +38,20 @@ import com.intellij.openapi.actionSystem.AnAction;
 public class CodebookAction extends AnAction {
 
     private final String apiKey = "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";
+
+    private final String guideLines = """
+            Comment the code according to the following guidelines:
+            1. Each line of code must be commented.
+            2. Comments happen only using the /* */ tags. No other type of comments are allowed.
+            3. Comments happen only to the right of the code line. Not before, not after.
+            4. Comments comment the code in the sense of the logic of the program. They reflect semantics, not syntax. A reader must understand the meaning behind the code, not directly the code itself.""";
+
+    private final String exampleCode = """
+            public static void main(String[] args) {
+            System.out.println("Hello world!");
+            }
+            """;
+
     @Override
     public @NotNull ActionUpdateThread getActionUpdateThread() {
         return ActionUpdateThread.BGT;
@@ -77,32 +94,24 @@ public class CodebookAction extends AnAction {
         {
             selectedCode = editor.getSelectionModel().getSelectedText();
             doc = editor.getDocument().getText();
+            var fmanager = FileEditorManager.getInstance(currentProject);
 
+
+            var completableFuture = CreateOpenAIRequest2(currentProject, doc);
+
+            var project_basePath = currentProject.getBasePath();
+            VirtualFile vFile = event.getData(PlatformDataKeys.VIRTUAL_FILE);
+            String fileName = vFile != null ? vFile.getName() : null;
+            System.out.println(project_basePath + " " + fileName);
+
+            completableFuture.thenAccept(res -> OpenVirtualFileInEditor(res, project_basePath, fileName, currentProject));
         }
 
-        var completableFuture = CreateOpenAIRequest2(currentProject, doc);
-
-//        var message = "Sending request to ChatGPT...";
-//        String title = event.getPresentation().getDescription();
 //        Messages.showMessageDialog(
 //                currentProject,
-//                message,
-//                title,
+//                responseContent,
+//                "ChatGPT Response",
 //                Messages.getInformationIcon());
-
-        var response = completableFuture.join();
-
-        int statusCode = response.statusCode();
-        var responseBody = response.body();
-        //System.out.println(statusCode);
-        System.out.println(response);
-        var responseContent = ProcessResponseBody(responseBody);
-
-        Messages.showMessageDialog(
-                currentProject,
-                responseContent,
-                "ChatGPT Response",
-                Messages.getInformationIcon());
     }
 
     @Override
@@ -148,24 +157,25 @@ public class CodebookAction extends AnAction {
 
     private CompletableFuture<HttpResponse<String>> CreateOpenAIRequest2(Project project, String requestContent)
     {
+        System.out.println(requestContent);
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        JsonNode requestJson = objectMapper.createObjectNode()
+                .put("model", "gpt-4")
+                .set("messages", objectMapper.createArrayNode()
+                        .add(objectMapper.createObjectNode()
+                                .put("role", "system")
+                                .put("content", guideLines))
+                        .add(objectMapper.createObjectNode()
+                                .put("role", "user")
+                                .put("content", requestContent)));
+
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create("https://api.openai.com/v1/chat/completions"))
                 .header("Content-Type", "application/json")
                 .header("Authorization", "Bearer " + apiKey)
-                .POST(BodyPublishers.ofString("{" +
-                        "\"model\": \"gpt-4\"," +
-                        "\"messages\": [" +
-                        "  {" +
-                        "    \"role\": \"system\"," +
-                        "    \"content\": \"You are a poetic assistant, skilled in explaining complex programming concepts with creative flair.\"" +
-                        "  }," +
-                        "  {" +
-                        "    \"role\": \"user\"," +
-                        "    \"content\": \"Compose a poem that explains the concept of recursion in programming.\"" +
-                        "  }" +
-                        "]" +
-                        "}"))
+                .POST(HttpRequest.BodyPublishers.ofString(requestJson.toString()))
                 .build();
 
         return client.sendAsync(request, BodyHandlers.ofString());
@@ -238,5 +248,33 @@ public class CodebookAction extends AnAction {
 //        }
 
         // return substring;
+    }
+
+    private void OpenVirtualFileInEditor(HttpResponse<String> response, String basePath, String filename, Project currentProject)
+    {
+        System.out.println("thenAccept: trying to open file");
+        var fullFileName = basePath+"\\"+filename;
+        System.out.println(fullFileName);
+        var responseBody = response.body();
+        System.out.println(response);
+        var responseContent = ProcessResponseBody(responseBody);
+        System.out.println(responseContent);
+
+//        try {
+//            BufferedWriter writer = new BufferedWriter(new FileWriter(fullFileName));
+//            writer.write(responseContent);
+//            writer.close();
+//        }
+//        catch (IOException exception)
+//        {
+//            System.out.println(exception);
+//        }
+
+        var fileEditorManager = FileEditorManager.getInstance(currentProject);
+//        var vFile = FilenameIndex.getVirtualFilesByName(fullFileName, GlobalSearchScope.projectScope(currentProject));
+        var psiFile = PsiFileFactory.getInstance(currentProject).createFileFromText(fullFileName, Language.ANY, responseContent );
+
+        var descriptor = new OpenFileDescriptor (currentProject, psiFile.getVirtualFile());
+        fileEditorManager.openTextEditor(descriptor, true);
     }
 }
