@@ -17,6 +17,9 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
+import com.intellij.openapi.fileEditor.FileEditorManager;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
+import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.pom.Navigatable;
@@ -29,7 +32,7 @@ import com.intellij.openapi.actionSystem.AnAction;
 
 public class CodebookAction extends AnAction {
 
-    private final String apiKey = "insertKeyHere";
+    private final String apiKey = "insert_key_here";
     @Override
     public @NotNull ActionUpdateThread getActionUpdateThread() {
         return ActionUpdateThread.BGT;
@@ -61,7 +64,21 @@ public class CodebookAction extends AnAction {
     @Override
     public void actionPerformed(@NotNull AnActionEvent event) {
         Project currentProject = event.getProject();
-        var completableFuture = CreateOpenAIRequest(currentProject);
+
+        // Document currentDoc = FileEditorManager.getInstance(currentProject).getSelectedTextEditor().getDocument();
+        // VirtualFile currentFile = FileDocumentManager.getInstance().getFile(currentDoc);
+
+        var editor = event.getData(CommonDataKeys.EDITOR);
+
+        String selectedCode, doc = "";
+        if(currentProject != null && editor != null )
+        {
+            selectedCode = editor.getSelectionModel().getSelectedText();
+            doc = editor.getDocument().getText();
+
+        }
+
+        var completableFuture = CreateOpenAIRequest(currentProject, doc);
 
 //        var message = "Sending request to ChatGPT...";
 //        String title = event.getPresentation().getDescription();
@@ -92,18 +109,18 @@ public class CodebookAction extends AnAction {
         e.getPresentation().setEnabledAndVisible(project != null);
     }
 
-    private CompletableFuture<HttpResponse<String>> CreateOpenAIRequest(Project project)
+    private CompletableFuture<HttpResponse<String>> CreateOpenAIRequest(Project project, String requestContent)
     {
         // ChatGPT API endpoint
         URI chatGPTApiUri = URI.create("https://api.openai.com/v1/chat/completions");
 
         // Sample prompt for ChatGPT
-        String prompt = "Translate the following English text to French: ";
+        String prompt = "Summaryze this code segment";
 
         // Build the request body
         String requestBody = "{\"model\": " +
-                "\"gpt-3.5-turbo\", " +
-                "\"messages\": [{\"role\": \"system\", \"content\": \"You are a helpful assistant.\"}, " +
+                "\"gpt-4\", " +
+                "\"messages\": [{\"role\": \"system\", \"content\": \"" + requestContent + "}\"}, " +
                 "{\"role\": \"user\", \"content\": \"" + prompt + "\"}]}";
 
         // Create an HttpClient
