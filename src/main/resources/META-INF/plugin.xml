@@ -1,18 +1,17 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
     <id>com.github.bucketoverflow.codebook</id>
-    <name>Codebook Template</name>
+    <name>Codebook</name>
     <vendor>bucketoverflow</vendor>
 
     <depends>com.intellij.modules.platform</depends>
 
     <resource-bundle>messages.MyBundle</resource-bundle>
 
-    <extensions defaultExtensionNs="com.intellij">
-        <toolWindow factoryClass="com.github.bucketoverflow.codebook.toolWindow.MyToolWindowFactory" id="MyToolWindow"/>
-    </extensions>
-
-    <applicationListeners>
-        <listener class="com.github.bucketoverflow.codebook.listeners.MyApplicationActivationListener" topic="com.intellij.openapi.application.ApplicationActivationListener"/>
-    </applicationListeners>
+    <actions>
+        <group id="com.github.bucketoverflow.codebook.DynamicActionGroup"
+               class="com.github.bucketoverflow.codebook.DynamicActionGroup" text="Codebook_Analysis">
+            <add-to-group group-id="AnalyzeActions" anchor="first"/>
+        </group>
+    </actions>
 </idea-plugin>
