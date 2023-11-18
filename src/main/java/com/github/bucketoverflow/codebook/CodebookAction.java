@@ -8,6 +8,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.net.http.HttpRequest.BodyPublishers;
+import java.net.http.HttpResponse.BodyHandlers;
 import java.util.concurrent.CompletableFuture;
 
 import java.util.regex.Matcher;
@@ -32,7 +34,7 @@ import com.intellij.openapi.actionSystem.AnAction;
 
 public class CodebookAction extends AnAction {
 
-    private final String apiKey = "insert_key_here";
+    private final String apiKey = "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";
     @Override
     public @NotNull ActionUpdateThread getActionUpdateThread() {
         return ActionUpdateThread.BGT;
@@ -78,7 +80,7 @@ public class CodebookAction extends AnAction {
 
         }
 
-        var completableFuture = CreateOpenAIRequest(currentProject, doc);
+        var completableFuture = CreateOpenAIRequest2(currentProject, doc);
 
 //        var message = "Sending request to ChatGPT...";
 //        String title = event.getPresentation().getDescription();
@@ -92,7 +94,8 @@ public class CodebookAction extends AnAction {
 
         int statusCode = response.statusCode();
         var responseBody = response.body();
-
+        //System.out.println(statusCode);
+        System.out.println(response);
         var responseContent = ProcessResponseBody(responseBody);
 
         Messages.showMessageDialog(
@@ -119,8 +122,8 @@ public class CodebookAction extends AnAction {
 
         // Build the request body
         String requestBody = "{\"model\": " +
-                "\"gpt-4\", " +
-                "\"messages\": [{\"role\": \"system\", \"content\": \"" + requestContent + "}\"}, " +
+                "\"gpt-3.5-turbo\", " +
+                "\"messages\": [{\"role\": \"system\", \"content\": \"" + requestContent + "\"}, " +
                 "{\"role\": \"user\", \"content\": \"" + prompt + "\"}]}";
 
         // Create an HttpClient
@@ -141,6 +144,32 @@ public class CodebookAction extends AnAction {
         responseFuture.thenAccept(response -> ResponseCallback(response, project));
 
         return responseFuture;
+    }
+
+    private CompletableFuture<HttpResponse<String>> CreateOpenAIRequest2(Project project, String requestContent)
+    {
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://api.openai.com/v1/chat/completions"))
+                .header("Content-Type", "application/json")
+                .header("Authorization", "Bearer " + apiKey)
+                .POST(BodyPublishers.ofString("{" +
+                        "\"model\": \"gpt-4\"," +
+                        "\"messages\": [" +
+                        "  {" +
+                        "    \"role\": \"system\"," +
+                        "    \"content\": \"You are a poetic assistant, skilled in explaining complex programming concepts with creative flair.\"" +
+                        "  }," +
+                        "  {" +
+                        "    \"role\": \"user\"," +
+                        "    \"content\": \"Compose a poem that explains the concept of recursion in programming.\"" +
+                        "  }" +
+                        "]" +
+                        "}"))
+                .build();
+
+        return client.sendAsync(request, BodyHandlers.ofString());
+                //.thenApply(HttpResponse::body);
     }
 
     private void ResponseCallback(HttpResponse<String> response, Project project)
