@@ -1,5 +1,6 @@
 package SidebarButton;
-
+import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.github.bucketoverflow.codebook.CodebookAction;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.editor.Editor;
@@ -16,9 +17,19 @@ import kotlinx.html.B;
 import org.jetbrains.annotations.NotNull;
 import javax.swing.*;
 import com.github.bucketoverflow.codebook.*;
+import com.intellij.openapi.util.io.FileUtil;
+import com.intellij.openapi.vfs.LocalFileSystem;
+import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.openapi.vfs.VirtualFileManager;
+import org.w3c.dom.events.Event;
+
+import java.io.File;
+import java.io.IOException;
 
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 
 public class CodebookButtonBuilder implements ToolWindowFactory{
@@ -27,6 +38,7 @@ public class CodebookButtonBuilder implements ToolWindowFactory{
     private JButton yesButton;
     private JButton noButton;
     private ToolWindow classToolWindow;
+    private Project currentProject;
 
 
     @Override
@@ -58,6 +70,7 @@ public class CodebookButtonBuilder implements ToolWindowFactory{
 
          */
         classToolWindow = toolWindow;
+        currentProject = project;
                 JPanel currentPanel = setUpAnalyseButton(project);
                 putPanelInToolWindow(currentPanel);
 
@@ -65,7 +78,7 @@ public class CodebookButtonBuilder implements ToolWindowFactory{
         }
 
         public JPanel setUpAnalyseButton(Project project) {
-
+            this.classToolWindow.getContentManager().removeAllContents(true);
             JPanel panel = new JPanel(new BorderLayout());
             JPanel ButtonPanel = new JPanel();
             JPanel labelPanel = new JPanel();
@@ -97,7 +110,7 @@ public class CodebookButtonBuilder implements ToolWindowFactory{
             return panel;
 
         }
-        public JPanel setUpChoiceButtons () {
+        public JPanel setUpChoiceButtons (String pathToOldFile, String pathToNewFile) {
             // Create UI components for your tool window
             this.classToolWindow.getContentManager().removeAllContents(true);
             JPanel panel = new JPanel(new BorderLayout());
@@ -108,10 +121,16 @@ public class CodebookButtonBuilder implements ToolWindowFactory{
 
 
             this.yesButton = new JButton("Yes");
-            yesButton.addActionListener(e -> replaceFile());
+            yesButton.addActionListener(e -> replaceFile(pathToOldFile, pathToNewFile));
             JLabel label = new JLabel("Replace your current files?");
             this.noButton = new JButton("No");
-            noButton.addActionListener(e -> discardGeneratedFiles(label));
+            noButton.addActionListener(e -> {
+                try {
+                    discardGeneratedFiles(label, pathToOldFile);
+                } catch (IOException ioException) {
+                    ioException.printStackTrace();
+                }
+            });
             //JPanel centralPanel = new JPanel();
 
             labelPanel.add(label,BorderLayout.CENTER);
@@ -149,16 +168,61 @@ public class CodebookButtonBuilder implements ToolWindowFactory{
             codebookAction.actionPerformed(project, editor.getEditor(), file, this);
         }
 
-        private void replaceFile () {
+        private void replaceFile (String pathToOldFile, String pathToNewFile) {
+            ApplicationManager.getApplication().runWriteAction(() -> {
+                try {
+                    // Load the content of the source file
 
+                    String content = FileUtil.loadFile(new File(pathToOldFile));
+
+                    // Overwrite the target file with the content of the source file
+                    FileUtil.writeToFile(new File(pathToNewFile), content);
+
+                    // Refresh the Virtual File System to reflect changes in IntelliJ IDEA
+                    VirtualFile sourceFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(new File(pathToNewFile));
+                    VirtualFile targetFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(new File(pathToOldFile));
+
+                    // Notify the IDE that the files have been modified
+                    if (sourceFile != null) {
+                        sourceFile.refresh(false, false);
+                    }
+                    if (targetFile != null) {
+                        targetFile.refresh(false, false);
+                    }
+
+                    // Save changes to the target file
+                    FileDocumentManager.getInstance().saveDocument(FileDocumentManager.getInstance().getDocument(targetFile));
+
+                    // Notify the file system that changes have been made
+                    VirtualFileManager.getInstance().syncRefresh();
+
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                this.putPanelInToolWindow(setUpAnalyseButton(this.currentProject));
+        });
         }
-        private void discardGeneratedFiles (JLabel label) {
+
+        private void discardGeneratedFiles (JLabel label, String pathToNewFile) throws IOException {
             label.setText("Files got discarded");
+
+            VirtualFile virtualFile = LocalFileSystem.getInstance().findFileByIoFile(new File(pathToNewFile));
+            FileEditorManager.getInstance(currentProject).closeFile(virtualFile);
+
+            // Delete the file
             try {
-                Thread.sleep(500);
+                Files.delete(Path.of(pathToNewFile));
             } catch (Exception e) {
                 e.printStackTrace();
             }
+
+            // Refresh the Virtual File System to reflect changes in IntelliJ IDEA
+            LocalFileSystem.getInstance().refreshAndFindFileByIoFile(new File(pathToNewFile));
+
+            // Notify the file system that changes have been made
+            VirtualFileManager.getInstance().syncRefresh();
+            this.putPanelInToolWindow(setUpAnalyseButton(this.currentProject));
+
         }
 
         private CodebookAction createCodebookAction()

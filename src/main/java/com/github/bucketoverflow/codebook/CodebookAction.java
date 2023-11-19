@@ -50,6 +50,7 @@ public class CodebookAction extends AnAction {
             """;
 
     private CodebookButtonBuilder buttonBuilder;
+    private String pathToOriginal;
 
     @Override
     public @NotNull ActionUpdateThread getActionUpdateThread() {
@@ -110,6 +111,8 @@ public class CodebookAction extends AnAction {
 
             var project_basePath = project.getBasePath();
             String fileName = vFile != null ? vFile.getName() : null;
+            assert vFile != null;
+            this.pathToOriginal = vFile.getPath();
 
             System.out.println(project_basePath + " " + fileName);
 
@@ -292,7 +295,7 @@ public class CodebookAction extends AnAction {
         if(!vFileArr.isEmpty())
         {
 
-         this.buttonBuilder.putPanelInToolWindow(this.buttonBuilder.setUpChoiceButtons());
+         this.buttonBuilder.putPanelInToolWindow(this.buttonBuilder.setUpChoiceButtons(fullFileName.toString(),this.pathToOriginal));
             vFileArr.forEach(vf -> {
                 var descriptor = new OpenFileDescriptor (currentProject, vf);
                 fileEditorManager.openTextEditor(descriptor, true);
