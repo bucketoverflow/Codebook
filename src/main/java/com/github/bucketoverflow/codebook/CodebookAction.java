@@ -108,6 +108,7 @@ public class CodebookAction extends AnAction {
 
     private void actionPerformed(Project project, Editor editor, VirtualFile vFile)
     {
+        //this.buttonBuilder.putPanelInToolWindow(this.buttonBuilder.setUpWaitingLabel());
         if(project != null && editor != null )
         {
             String requestContent = "";
@@ -124,6 +125,8 @@ public class CodebookAction extends AnAction {
             String fileName = vFile != null ? vFile.getName() : null;
 
             System.out.println(project_basePath + " " + fileName);
+
+
             var result = completableFuture.join();
             System.out.println(result.statusCode());
             System.out.println(result.body());
@@ -294,6 +297,8 @@ public class CodebookAction extends AnAction {
 
         if(!vFileArr.isEmpty())
         {
+
+         this.buttonBuilder.putPanelInToolWindow(this.buttonBuilder.setUpChoiceButtons());
             vFileArr.forEach(vf -> {
                 var descriptor = new OpenFileDescriptor (currentProject, vf);
                 fileEditorManager.openTextEditor(descriptor, true);

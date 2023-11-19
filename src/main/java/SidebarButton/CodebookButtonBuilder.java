@@ -26,6 +26,7 @@ public class CodebookButtonBuilder implements ToolWindowFactory{
     private JButton analyzeButton;
     private JButton yesButton;
     private JButton noButton;
+    private ToolWindow classToolWindow;
 
 
     @Override
@@ -56,19 +57,24 @@ public class CodebookButtonBuilder implements ToolWindowFactory{
         panel.add(BorderLayout.NORTH,label);
 
          */
+        classToolWindow = toolWindow;
                 JPanel currentPanel = setUpAnalyseButton(project);
-                putPanelInToolWindow(currentPanel, toolWindow);
+                putPanelInToolWindow(currentPanel);
 
 
         }
 
-        private JPanel setUpAnalyseButton(Project project) {
+        public JPanel setUpAnalyseButton(Project project) {
+
             JPanel panel = new JPanel(new BorderLayout());
             JPanel ButtonPanel = new JPanel();
             JPanel labelPanel = new JPanel();
 
             this.analyzeButton = new JButton("Create Codebook");
-            this.analyzeButton.addActionListener(this::analyzeFile);
+            this.analyzeButton.addActionListener(e -> {
+                putPanelInToolWindow(setUpWaitingLabel());
+                analyzeFile(e);
+            });
             ButtonPanel.add(this.analyzeButton, BorderLayout.CENTER);
 
             JLabel analyzeLabel = new JLabel("Click Button to analyze");
@@ -78,9 +84,11 @@ public class CodebookButtonBuilder implements ToolWindowFactory{
             panel.add(ButtonPanel,BorderLayout.CENTER);
             panel.add(labelPanel,BorderLayout.NORTH);
 
+
             return panel;
         }
-        private JPanel setUpWaitingLabel () {
+        public JPanel setUpWaitingLabel () {
+            this.classToolWindow.getContentManager().removeAllContents(true);
             JPanel panel = new JPanel(new BorderLayout());
             JLabel waiting = new JLabel("Analyzing...");
 
@@ -89,12 +97,16 @@ public class CodebookButtonBuilder implements ToolWindowFactory{
             return panel;
 
         }
-        private JPanel setUpChoiceButtons () {
+        public JPanel setUpChoiceButtons () {
             // Create UI components for your tool window
+            this.classToolWindow.getContentManager().removeAllContents(true);
             JPanel panel = new JPanel(new BorderLayout());
             //panel.setLayout(new BorderLayout(0, 20));
             JPanel ButtonPanel = new JPanel();
             JPanel labelPanel = new JPanel();
+
+
+
             this.yesButton = new JButton("Yes");
             yesButton.addActionListener(e -> replaceFile());
             JLabel label = new JLabel("Replace your current files?");
@@ -104,22 +116,23 @@ public class CodebookButtonBuilder implements ToolWindowFactory{
 
             labelPanel.add(label,BorderLayout.CENTER);
             panel.add(labelPanel, BorderLayout.NORTH);
+            //noButtonPanel.add(yesButton,BorderLayout.CENTER);
+            //yesButtonPanel.add(noButton,BorderLayout.CENTER);
             ButtonPanel.add(yesButton,BorderLayout.WEST);
             ButtonPanel.add(noButton,BorderLayout.EAST);
             panel.add(ButtonPanel, BorderLayout.CENTER);
 
-        panel.add(BorderLayout.WEST,yesButton);
-        panel.add(BorderLayout.EAST,noButton);
-        panel.add(BorderLayout.NORTH,label);
-        panel.add(BorderLayout.SOUTH, analyzeButton);
+        panel.add(BorderLayout.CENTER,ButtonPanel);
+        panel.add(BorderLayout.NORTH,labelPanel);
+
             return panel;
         }
 
-        private void putPanelInToolWindow (JPanel panel, ToolWindow toolWindow) {
+        public void putPanelInToolWindow (JPanel panel) {
             // Create content for the tool window
             ContentFactory contentFactory = ContentFactory.getInstance();
             Content content = contentFactory.createContent(panel, "", false);
-            toolWindow.getContentManager().addContent(content);
+            this.classToolWindow.getContentManager().addContent(content);
         }
 
         private void analyzeFile(@NotNull ActionEvent event)
