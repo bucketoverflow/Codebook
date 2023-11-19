@@ -10,6 +10,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.concurrent.CompletableFuture;
 
 import java.util.regex.Matcher;
@@ -21,6 +23,7 @@ import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileEditor.OpenFileDescriptor;
+import com.intellij.openapi.fileTypes.PlainTextLanguage;
 import com.intellij.psi.PsiFileFactory;
 import com.intellij.psi.search.FilenameIndex;
 import com.intellij.openapi.project.Project;
@@ -39,12 +42,15 @@ public class CodebookAction extends AnAction {
 
     private final String apiKey = "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";
 
-    private final String guideLines = """
-            Comment the code according to the following guidelines:
-            1. Each line of code must be commented.
-            2. Comments happen only using the /* */ tags. No other type of comments are allowed.
-            3. Comments happen only to the right of the code line. Not before, not after.
-            4. Comments comment the code in the sense of the logic of the program. They reflect semantics, not syntax. A reader must understand the meaning behind the code, not directly the code itself.""";
+    private final String guideLines = "Comment the code according to the following guidelines:\n" +
+            "1. Each line of code must be commented.\n" +
+            "2. Comments happen only using the /* */ tags. No other type of comments are allowed.\n" +
+            "3. Comments happen only to the right of the code line. Not before, not after.\n" +
+            "4. Comments start at exactly the 80. character position in the line.\n" +
+            "5. Comments end at exactly the 160. character of the line. If a comment is long, a line break at the 160. line should be inserted, and the next comment line start with 80. character again.\n" +
+            "6. The closing symbols */ are always at the 160. position in a line.\n" +
+            "7. Comments comment the code in the sense of the logic of the program. They reflect semantics, not syntax. A reader must understand the meaning behind the code, not directly the code itself.\n" +
+            "8. There is a doxygen header for each method.\n";
 
     private final String exampleCode = """
             public static void main(String[] args) {
@@ -83,35 +89,30 @@ public class CodebookAction extends AnAction {
     @Override
     public void actionPerformed(@NotNull AnActionEvent event) {
         Project currentProject = event.getProject();
-
-        // Document currentDoc = FileEditorManager.getInstance(currentProject).getSelectedTextEditor().getDocument();
-        // VirtualFile currentFile = FileDocumentManager.getInstance().getFile(currentDoc);
-
         var editor = event.getData(CommonDataKeys.EDITOR);
 
-        String selectedCode, doc = "";
         if(currentProject != null && editor != null )
         {
-            selectedCode = editor.getSelectionModel().getSelectedText();
-            doc = editor.getDocument().getText();
-            var fmanager = FileEditorManager.getInstance(currentProject);
+            String requestContent = "";
+            var selectedCode = editor.getSelectionModel().getSelectedText();
 
+            if(selectedCode != null)
+                requestContent = selectedCode;
+            else
+                requestContent = editor.getDocument().getText();
 
-            var completableFuture = CreateOpenAIRequest2(currentProject, doc);
+            var completableFuture = CreateOpenAIRequest2(currentProject, requestContent);
 
             var project_basePath = currentProject.getBasePath();
             VirtualFile vFile = event.getData(PlatformDataKeys.VIRTUAL_FILE);
             String fileName = vFile != null ? vFile.getName() : null;
             System.out.println(project_basePath + " " + fileName);
-
-            completableFuture.thenAccept(res -> OpenVirtualFileInEditor(res, project_basePath, fileName, currentProject));
+            var result = completableFuture.join();
+            System.out.println(result.statusCode());
+            System.out.println(result.body());
+            OpenVirtualFileInEditor(result, project_basePath, fileName, currentProject);
+            //completableFuture.thenAccept(res -> OpenVirtualFileInEditor(res, project_basePath, fileName, currentProject));
         }
-
-//        Messages.showMessageDialog(
-//                currentProject,
-//                responseContent,
-//                "ChatGPT Response",
-//                Messages.getInformationIcon());
     }
 
     @Override
@@ -253,28 +254,33 @@ public class CodebookAction extends AnAction {
     private void OpenVirtualFileInEditor(HttpResponse<String> response, String basePath, String filename, Project currentProject)
     {
         System.out.println("thenAccept: trying to open file");
-        var fullFileName = basePath+"\\"+filename;
+        var fullFileName = Paths.get(basePath, "temp_" + filename);
         System.out.println(fullFileName);
         var responseBody = response.body();
         System.out.println(response);
         var responseContent = ProcessResponseBody(responseBody);
         System.out.println(responseContent);
 
-//        try {
-//            BufferedWriter writer = new BufferedWriter(new FileWriter(fullFileName));
-//            writer.write(responseContent);
-//            writer.close();
-//        }
-//        catch (IOException exception)
-//        {
-//            System.out.println(exception);
-//        }
+        try {
+            BufferedWriter writer = new BufferedWriter(new FileWriter(fullFileName.toFile()));
+            writer.write(responseContent);
+            writer.close();
+        }
+        catch (IOException exception)
+        {
+            System.out.println(exception);
+        }
 
         var fileEditorManager = FileEditorManager.getInstance(currentProject);
-//        var vFile = FilenameIndex.getVirtualFilesByName(fullFileName, GlobalSearchScope.projectScope(currentProject));
-        var psiFile = PsiFileFactory.getInstance(currentProject).createFileFromText(fullFileName, Language.ANY, responseContent );
+        var vFileArr = FilenameIndex.getVirtualFilesByName(fullFileName.getFileName().toString(), GlobalSearchScope.projectScope(currentProject));
+        // var psiFile = PsiFileFactory.getInstance(currentProject).createFileFromText(fullFileName.toString(), PlainTextLanguage.INSTANCE, responseContent );
 
-        var descriptor = new OpenFileDescriptor (currentProject, psiFile.getVirtualFile());
-        fileEditorManager.openTextEditor(descriptor, true);
+        if(!vFileArr.isEmpty())
+        {
+            vFileArr.forEach(vf -> {
+                var descriptor = new OpenFileDescriptor (currentProject, vf);
+                fileEditorManager.openTextEditor(descriptor, true);
+            });
+        }
     }
 }
