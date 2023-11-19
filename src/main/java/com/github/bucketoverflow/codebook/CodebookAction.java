@@ -3,44 +3,31 @@ package com.github.bucketoverflow.codebook;
 import SidebarButton.CodebookButtonBuilder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.intellij.openapi.actionSystem.*;
+import com.intellij.openapi.editor.Editor;
+import com.intellij.openapi.fileEditor.FileEditorManager;
+import com.intellij.openapi.fileEditor.OpenFileDescriptor;
+import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.vfs.VfsUtil;
+import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.search.FilenameIndex;
+import com.intellij.psi.search.GlobalSearchScope;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-import java.awt.event.ActionEvent;
-import java.io.*;
+import javax.swing.*;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse.BodyHandlers;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.CompletableFuture;
-
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import com.intellij.lang.Language;
-import com.intellij.openapi.actionSystem.*;
-import com.intellij.openapi.fileEditor.FileEditor;
-import com.intellij.openapi.fileEditor.FileEditorManager;
-import com.intellij.openapi.fileEditor.FileDocumentManager;
-import com.intellij.openapi.editor.Editor;
-import com.intellij.openapi.fileEditor.OpenFileDescriptor;
-import com.intellij.openapi.fileTypes.PlainTextLanguage;
-import com.intellij.psi.PsiFileFactory;
-import com.intellij.psi.search.FilenameIndex;
-import com.intellij.openapi.project.Project;
-import com.intellij.openapi.ui.Messages;
-import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.pom.Navigatable;
-import com.intellij.psi.search.GlobalSearchScope;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-import org.json.JSONObject;
-
-import javax.swing.*;
-
-import com.intellij.openapi.actionSystem.AnAction;
 
 public class CodebookAction extends AnAction {
 
@@ -292,7 +279,14 @@ public class CodebookAction extends AnAction {
         }
 
         var fileEditorManager = FileEditorManager.getInstance(currentProject);
-        var vFileArr = FilenameIndex.getVirtualFilesByName(fullFileName.getFileName().toString(), GlobalSearchScope.projectScope(currentProject));
+        var folder = fullFileName.getParent().toFile();
+        System.out.println("refreshing folder:");
+        System.out.println(folder);
+        VfsUtil.markDirtyAndRefresh(false, false, true, folder);
+
+        System.out.println("trying to open file:");
+        System.out.println(fullFileName);
+        var vFileArr = FilenameIndex.getVirtualFilesByName(fullFileName.getFileName().toString(), GlobalSearchScope.everythingScope(currentProject));
         // var psiFile = PsiFileFactory.getInstance(currentProject).createFileFromText(fullFileName.toString(), PlainTextLanguage.INSTANCE, responseContent );
 
         if(!vFileArr.isEmpty())
@@ -304,5 +298,7 @@ public class CodebookAction extends AnAction {
                 fileEditorManager.openTextEditor(descriptor, true);
             });
         }
+        else
+            System.out.println("VirtualFileArray empty, can not open any files in editor!");
     }
 }
