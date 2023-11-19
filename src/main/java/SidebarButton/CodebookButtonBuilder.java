@@ -30,6 +30,7 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 
 public class CodebookButtonBuilder implements ToolWindowFactory{
@@ -121,8 +122,16 @@ public class CodebookButtonBuilder implements ToolWindowFactory{
 
 
             this.yesButton = new JButton("Yes");
-            yesButton.addActionListener(e -> replaceFile(pathToOldFile, pathToNewFile));
             JLabel label = new JLabel("Replace your current files?");
+            yesButton.addActionListener(e -> {
+                replaceFile(pathToOldFile, pathToNewFile);
+                try {
+                    discardGeneratedFiles(label,pathToOldFile);
+                } catch (IOException ex) {
+                    throw new RuntimeException(ex);
+                }
+            });
+
             this.noButton = new JButton("No");
             noButton.addActionListener(e -> {
                 try {
@@ -199,25 +208,24 @@ public class CodebookButtonBuilder implements ToolWindowFactory{
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
-                this.putPanelInToolWindow(setUpAnalyseButton(this.currentProject));
-        });
+            });
         }
 
-        private void discardGeneratedFiles (JLabel label, String pathToNewFile) throws IOException {
+        private void discardGeneratedFiles (JLabel label, String pathToOldFile) throws IOException {
             label.setText("Files got discarded");
 
-            VirtualFile virtualFile = LocalFileSystem.getInstance().findFileByIoFile(new File(pathToNewFile));
+            VirtualFile virtualFile = LocalFileSystem.getInstance().findFileByIoFile(new File(pathToOldFile));
             FileEditorManager.getInstance(currentProject).closeFile(virtualFile);
 
             // Delete the file
             try {
-                Files.delete(Path.of(pathToNewFile));
+                Files.delete(Paths.get(pathToOldFile));
             } catch (Exception e) {
                 e.printStackTrace();
             }
 
             // Refresh the Virtual File System to reflect changes in IntelliJ IDEA
-            LocalFileSystem.getInstance().refreshAndFindFileByIoFile(new File(pathToNewFile));
+            LocalFileSystem.getInstance().refreshAndFindFileByIoFile(new File(pathToOldFile));
 
             // Notify the file system that changes have been made
             VirtualFileManager.getInstance().syncRefresh();
