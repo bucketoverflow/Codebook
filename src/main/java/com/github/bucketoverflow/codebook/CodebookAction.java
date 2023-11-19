@@ -268,14 +268,13 @@ public class CodebookAction extends AnAction {
 
         if(!vFileArr.isEmpty())
         {
-
          this.buttonBuilder.putPanelInToolWindow(this.buttonBuilder.setUpChoiceButtons(fullFileName.toString(),this.pathToOriginal));
-
             vFileArr.forEach(vf -> {
                 var descriptor = new OpenFileDescriptor (currentProject, vf);
                 var edit = fileEditorManager.openTextEditor(descriptor, true);
 
-//                System.out.println("trying to reformat file:");
+                System.out.println("trying to reformat file:");
+                CommentFormatter.formatCommentsInFile(fullFileName.toString());
 //                var psiFile = PsiManager.getInstance(currentProject).findFile(vf);
 //                if(psiFile != null)
 //                    new ReformatCodeProcessor(psiFile, true).run();
