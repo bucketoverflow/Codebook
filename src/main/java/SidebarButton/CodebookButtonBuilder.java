@@ -67,9 +67,9 @@ public class CodebookButtonBuilder implements ToolWindowFactory{
             JPanel ButtonPanel = new JPanel();
             JPanel labelPanel = new JPanel();
 
-            JButton analayzeButton = new JButton("Create Codebook");
-            analayzeButton.addActionListener(this::analyzeFile);
-            ButtonPanel.add(analayzeButton, BorderLayout.CENTER);
+            this.analyzeButton = new JButton("Create Codebook");
+            this.analyzeButton.addActionListener(this::analyzeFile);
+            ButtonPanel.add(this.analyzeButton, BorderLayout.CENTER);
 
             JLabel analyzeLabel = new JLabel("Click Button to analyze");
             labelPanel.add(analyzeLabel,BorderLayout.CENTER);
@@ -95,10 +95,10 @@ public class CodebookButtonBuilder implements ToolWindowFactory{
             //panel.setLayout(new BorderLayout(0, 20));
             JPanel ButtonPanel = new JPanel();
             JPanel labelPanel = new JPanel();
-            JButton yesButton = new JButton("Yes");
+            this.yesButton = new JButton("Yes");
             yesButton.addActionListener(e -> replaceFile());
             JLabel label = new JLabel("Replace your current files?");
-            JButton noButton = new JButton("No");
+            this.noButton = new JButton("No");
             noButton.addActionListener(e -> discardGeneratedFiles(label));
             //JPanel centralPanel = new JPanel();
 
