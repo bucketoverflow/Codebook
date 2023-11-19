@@ -3,7 +3,6 @@ package com.github.bucketoverflow.codebook;
 import SidebarButton.CodebookButtonBuilder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.intellij.codeInsight.actions.ReformatCodeProcessor;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileEditor.FileEditorManager;
@@ -11,7 +10,6 @@ import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.psi.PsiManager;
 import com.intellij.psi.search.FilenameIndex;
 import com.intellij.psi.search.GlobalSearchScope;
 import org.jetbrains.annotations.NotNull;
@@ -33,7 +31,7 @@ import java.util.concurrent.CompletableFuture;
 
 public class CodebookAction extends AnAction {
 
-    private final String apiKey = "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";
+    private String apiKey;
 
     private final String small_instructions = "You are an advanced code documentation tool. You returns back the code the user sent you, but with comments, which apply to the following rules:\n" +
             "\n" +
@@ -101,12 +99,12 @@ public class CodebookAction extends AnAction {
 
     private void actionPerformed(Project project, Editor editor, VirtualFile vFile)
     {
-//        String openaiApiKey = System.getenv("OPENAI_API_KEY");
-//
-//        if (openaiApiKey == null) {
-//            System.err.println("OpenAI API key is not set.");
-//            return;
-//        }
+        apiKey = System.getenv("OPENAI_API_KEY");
+
+        if (apiKey == null) {
+            System.err.println("OpenAI API key is not set.");
+            return;
+        }
 
         //this.buttonBuilder.putPanelInToolWindow(this.buttonBuilder.setUpWaitingLabel());
         if(project != null && editor != null )
@@ -277,12 +275,12 @@ public class CodebookAction extends AnAction {
                 var descriptor = new OpenFileDescriptor (currentProject, vf);
                 var edit = fileEditorManager.openTextEditor(descriptor, true);
 
-                System.out.println("trying to reformat file:");
-                var psiFile = PsiManager.getInstance(currentProject).findFile(vf);
-                if(psiFile != null)
-                    new ReformatCodeProcessor(psiFile, true).run();
-                else
-                    System.out.println("couldn't open file, can't reformat.");
+//                System.out.println("trying to reformat file:");
+//                var psiFile = PsiManager.getInstance(currentProject).findFile(vf);
+//                if(psiFile != null)
+//                    new ReformatCodeProcessor(psiFile, true).run();
+//                else
+//                    System.out.println("couldn't open file, can't reformat.");
             });
         }
         else
