@@ -1,8 +1,10 @@
 package com.github.bucketoverflow.codebook;
 
+import SidebarButton.CodebookButtonBuilder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.awt.event.ActionEvent;
 import java.io.*;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -19,6 +21,7 @@ import java.util.regex.Pattern;
 
 import com.intellij.lang.Language;
 import com.intellij.openapi.actionSystem.*;
+import com.intellij.openapi.fileEditor.FileEditor;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.editor.Editor;
@@ -33,6 +36,7 @@ import com.intellij.pom.Navigatable;
 import com.intellij.psi.search.GlobalSearchScope;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.json.JSONObject;
 
 import javax.swing.*;
 
@@ -57,6 +61,8 @@ public class CodebookAction extends AnAction {
             System.out.println("Hello world!");
             }
             """;
+
+    private CodebookButtonBuilder buttonBuilder;
 
     @Override
     public @NotNull ActionUpdateThread getActionUpdateThread() {
@@ -86,31 +92,42 @@ public class CodebookAction extends AnAction {
         super(text, description, icon);
     }
 
+    public void actionPerformed(@NotNull Project project, Editor editor, VirtualFile vFile, CodebookButtonBuilder buttonBuilder)
+    {
+        this.buttonBuilder = buttonBuilder;
+        this.actionPerformed(project, editor, vFile);
+    }
     @Override
     public void actionPerformed(@NotNull AnActionEvent event) {
+
         Project currentProject = event.getProject();
         var editor = event.getData(CommonDataKeys.EDITOR);
+        VirtualFile vFile = event.getData(PlatformDataKeys.VIRTUAL_FILE);
+        this.actionPerformed(currentProject, editor, vFile);
+    }
 
-        if(currentProject != null && editor != null )
+    private void actionPerformed(Project project, Editor editor, VirtualFile vFile)
+    {
+        if(project != null && editor != null )
         {
             String requestContent = "";
-            var selectedCode = editor.getSelectionModel().getSelectedText();
+            //var selectedCode = editor.getSelectionModel().getSelectedText();
 
-            if(selectedCode != null)
-                requestContent = selectedCode;
-            else
-                requestContent = editor.getDocument().getText();
+//            if(selectedCode != null)
+//                requestContent = selectedCode;
+//            else
+            requestContent = editor.getDocument().getText();
 
-            var completableFuture = CreateOpenAIRequest2(currentProject, requestContent);
+            var completableFuture = CreateOpenAIRequest2(project, requestContent);
 
-            var project_basePath = currentProject.getBasePath();
-            VirtualFile vFile = event.getData(PlatformDataKeys.VIRTUAL_FILE);
+            var project_basePath = project.getBasePath();
             String fileName = vFile != null ? vFile.getName() : null;
+
             System.out.println(project_basePath + " " + fileName);
             var result = completableFuture.join();
             System.out.println(result.statusCode());
             System.out.println(result.body());
-            OpenVirtualFileInEditor(result, project_basePath, fileName, currentProject);
+            OpenVirtualFileInEditor(result, project_basePath, fileName, project);
             //completableFuture.thenAccept(res -> OpenVirtualFileInEditor(res, project_basePath, fileName, currentProject));
         }
     }
