@@ -4,12 +4,17 @@ import SidebarButton.CodebookButtonBuilder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.intellij.openapi.actionSystem.*;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.Editor;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.io.FileUtil;
+import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.psi.search.FilenameIndex;
 import com.intellij.psi.search.GlobalSearchScope;
 import org.jetbrains.annotations.NotNull;
@@ -18,6 +23,7 @@ import org.json.JSONObject;
 
 import javax.swing.*;
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.URI;
@@ -257,13 +263,25 @@ public class CodebookAction extends AnAction {
 
         var fileEditorManager = FileEditorManager.getInstance(currentProject);
         var folder = fullFileName.getParent().toFile();
+
+        System.out.println("trying to reformat file:");
+        CommentFormatter.formatCommentsInFile(fullFileName.toString());
+
+        System.out.println("switching formatted with unformatted file");
+        var oldName = fullFileName.toString();
+        var fileNameOnly = fullFileName.getFileName().toString();
+        var newName = oldName.replace(fileNameOnly, fileNameOnly + "_formatted");
+        System.out.println("oldname:" + oldName);
+        System.out.println("newname: " + newName);
+        replaceFile(newName, oldName);
+
         System.out.println("refreshing folder:");
         System.out.println(folder);
         VfsUtil.markDirtyAndRefresh(false, false, true, folder);
 
         System.out.println("trying to open file:");
         System.out.println(fullFileName);
-        var vFileArr = FilenameIndex.getVirtualFilesByName(fullFileName.getFileName().toString(), GlobalSearchScope.everythingScope(currentProject));
+        var vFileArr = FilenameIndex.getVirtualFilesByName(fileNameOnly, GlobalSearchScope.everythingScope(currentProject));
         // var psiFile = PsiFileFactory.getInstance(currentProject).createFileFromText(fullFileName.toString(), PlainTextLanguage.INSTANCE, responseContent );
 
         if(!vFileArr.isEmpty())
@@ -273,13 +291,47 @@ public class CodebookAction extends AnAction {
                 var descriptor = new OpenFileDescriptor (currentProject, vf);
                 var edit = fileEditorManager.openTextEditor(descriptor, true);
 
-                System.out.println("trying to reformat file:");
-                CommentFormatter.formatCommentsInFile(fullFileName.toString());
-                VfsUtil.markDirtyAndRefresh(false, false, true, folder);
+//                System.out.println("trying to reformat file:");
+//                CommentFormatter.formatCommentsInFile(fullFileName.toString());
+//                VfsUtil.markDirtyAndRefresh(false, false, true, folder);
 
             });
         }
         else
             System.out.println("VirtualFileArray empty, can not open any files in editor!");
+    }
+
+    private void replaceFile (String pathToOldFile, String pathToNewFile) {
+        ApplicationManager.getApplication().runWriteAction(() -> {
+            try {
+                // Load the content of the source file
+
+                String content = FileUtil.loadFile(new File(pathToOldFile));
+
+                // Overwrite the target file with the content of the source file
+                FileUtil.writeToFile(new File(pathToNewFile), content);
+
+                // Refresh the Virtual File System to reflect changes in IntelliJ IDEA
+                VirtualFile sourceFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(new File(pathToNewFile));
+                VirtualFile targetFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(new File(pathToOldFile));
+
+                // Notify the IDE that the files have been modified
+                if (sourceFile != null) {
+                    sourceFile.refresh(false, false);
+                }
+                if (targetFile != null) {
+                    targetFile.refresh(false, false);
+                }
+
+                // Save changes to the target file
+                FileDocumentManager.getInstance().saveDocument(FileDocumentManager.getInstance().getDocument(targetFile));
+
+                // Notify the file system that changes have been made
+                VirtualFileManager.getInstance().syncRefresh();
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
     }
 }
