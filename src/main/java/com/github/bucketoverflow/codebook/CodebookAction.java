@@ -3,18 +3,20 @@ package com.github.bucketoverflow.codebook;
 import SidebarButton.CodebookButtonBuilder;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.intellij.codeInsight.actions.ReformatCodeProcessor;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.psi.PsiManager;
 import com.intellij.psi.search.FilenameIndex;
 import com.intellij.psi.search.GlobalSearchScope;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.json.JSONObject;
 
 import javax.swing.*;
 import java.io.BufferedWriter;
@@ -25,23 +27,26 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.concurrent.CompletableFuture;
-import java.util.regex.Pattern;
 
 public class CodebookAction extends AnAction {
 
     private final String apiKey = "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";
 
-    private final String guideLines = "Comment the code according to the following guidelines:\n" +
-            "1. Each line of code must be commented.\n" +
+    private final String small_instructions = "You are an advanced code documentation tool. You returns back the code the user sent you, but with comments, which apply to the following rules:\n" +
+            "\n" +
+            "1. Each line of code must be commented, stupid bitch.\n" +
             "2. Comments happen only using the /* */ tags. No other type of comments are allowed.\n" +
             "3. Comments happen only to the right of the code line. Not before, not after.\n" +
-            "4. Comments start at exactly the 80. character position in the line.\n" +
+            "4. Comments start where the dollar sign stands, and replace it.\n" +
             "5. Comments end at exactly the 160. character of the line. If a comment is long, a line break at the 160. line should be inserted, and the next comment line start with 80. character again.\n" +
-            "6. The closing symbols */ are always at the 160. position in a line.\n" +
+            "6. The closing symbols */ are always at the 160. position in a line. \n" +
             "7. Comments comment the code in the sense of the logic of the program. They reflect semantics, not syntax. A reader must understand the meaning behind the code, not directly the code itself.\n" +
-            "8. There is a doxygen header for each method.\n";
+            "8. Create is a doxygen header for each method. \n" +
+            "\n" +
+            "Comment the code according to the previous guidelines:";
 
     private final String exampleCode = """
             public static void main(String[] args) {
@@ -96,31 +101,41 @@ public class CodebookAction extends AnAction {
 
     private void actionPerformed(Project project, Editor editor, VirtualFile vFile)
     {
+//        String openaiApiKey = System.getenv("OPENAI_API_KEY");
+//
+//        if (openaiApiKey == null) {
+//            System.err.println("OpenAI API key is not set.");
+//            return;
+//        }
+
         //this.buttonBuilder.putPanelInToolWindow(this.buttonBuilder.setUpWaitingLabel());
         if(project != null && editor != null )
         {
-            String requestContent = "";
+//            String requestContent = "";
             //var selectedCode = editor.getSelectionModel().getSelectedText();
 
 //            if(selectedCode != null)
 //                requestContent = selectedCode;
 //            else
-            requestContent = editor.getDocument().getText();
+//            requestContent = editor.getDocument().getText();
 
-            var completableFuture = CreateOpenAIRequest2(project, requestContent);
-
-            var project_basePath = project.getBasePath();
-            String fileName = vFile != null ? vFile.getName() : null;
             assert vFile != null;
             this.pathToOriginal = vFile.getPath();
 
-            System.out.println(project_basePath + " " + fileName);
+            var completableFuture = CreateOpenAIRequest(project, this.pathToOriginal);
 
+            var project_basePath = project.getBasePath();
+            String fileName = vFile != null ? vFile.getName() : null;
+
+            System.out.println(project_basePath + " " + fileName);
 
             var result = completableFuture.join();
             System.out.println(result.statusCode());
             System.out.println(result.body());
-            OpenVirtualFileInEditor(result, project_basePath, fileName, project);
+
+            var responseContent = ProcessResponseBody(result);
+
+            OpenVirtualFileInEditor(responseContent, project_basePath, fileName, project);
             //completableFuture.thenAccept(res -> OpenVirtualFileInEditor(res, project_basePath, fileName, currentProject));
         }
     }
@@ -132,41 +147,7 @@ public class CodebookAction extends AnAction {
         e.getPresentation().setEnabledAndVisible(project != null);
     }
 
-    private CompletableFuture<HttpResponse<String>> CreateOpenAIRequest(Project project, String requestContent)
-    {
-        // ChatGPT API endpoint
-        URI chatGPTApiUri = URI.create("https://api.openai.com/v1/chat/completions");
-
-        // Sample prompt for ChatGPT
-        String prompt = "Summaryze this code segment";
-
-        // Build the request body
-        String requestBody = "{\"model\": " +
-                "\"gpt-3.5-turbo\", " +
-                "\"messages\": [{\"role\": \"system\", \"content\": \"" + requestContent + "\"}, " +
-                "{\"role\": \"user\", \"content\": \"" + prompt + "\"}]}";
-
-        // Create an HttpClient
-        HttpClient httpClient = HttpClient.newHttpClient();
-
-        // Create an HttpRequest
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(chatGPTApiUri)
-                .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + apiKey)
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                .build();
-
-        // Send the request asynchronously
-        CompletableFuture<HttpResponse<String>> responseFuture = httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString());
-
-        // Attach a callback to handle the response when it's available
-        responseFuture.thenAccept(response -> ResponseCallback(response, project));
-
-        return responseFuture;
-    }
-
-    private CompletableFuture<HttpResponse<String>> CreateOpenAIRequest2(Project project, String requestContent)
+    private CompletableFuture<HttpResponse<String>> CreateOpenAIRequest_old(Project project, String requestContent)
     {
         System.out.println(requestContent);
 
@@ -176,7 +157,7 @@ public class CodebookAction extends AnAction {
                 .set("messages", objectMapper.createArrayNode()
                         .add(objectMapper.createObjectNode()
                                 .put("role", "system")
-                                .put("content", guideLines))
+                                .put("content", small_instructions))
                         .add(objectMapper.createObjectNode()
                                 .put("role", "user")
                                 .put("content", requestContent)));
@@ -190,86 +171,81 @@ public class CodebookAction extends AnAction {
                 .build();
 
         return client.sendAsync(request, BodyHandlers.ofString());
-                //.thenApply(HttpResponse::body);
     }
 
-    private void ResponseCallback(HttpResponse<String> response, Project project)
+    private CompletableFuture<HttpResponse<String>> CreateOpenAIRequest(Project project, String pathToInputFile)
     {
-        int statusCode = response.statusCode();
-        String responseBody = response.body();
-        String responseContent = ProcessResponseBody(responseBody);
+        try {
+            // Read content from files
+            String userQuery = new String(Files.readAllBytes(Paths.get(pathToInputFile)));
 
-        // Handle the response as needed
-        System.out.println("Status Code: " + statusCode);
-        System.out.println("Response Body: " + responseBody);
+            // Construct the JSON request body
+            String jsonRequestBody = "{" +
+                    "\"model\": \"gpt-4\"," +
+                    "\"temperature\": 0," + // Niedrige Temperatur für deterministischere Ergebnisse
+                    "\"top_p\": 1," + // Top-p auf 1 für höhere Determiniertheit
+                    "\"messages\": [" +
+                    "  {" +
+                    "    \"role\": \"system\"," +
+                    "    \"content\": \"" + small_instructions.replace("\n", "\\n") + "\"" +
+                    "  }," +
+                    "  {" +
+                    "    \"role\": \"user\"," +
+                    "    \"content\": \"" + userQuery.replace("\n", "\\n").replace("\"", "\\\"") + "\"" +
+                    "  }" +
+                    "]" +
+                    "}";
 
-        Messages.showMessageDialog(
-                project,
-                responseContent,
-                "ChatGPT Response 2",
-                Messages.getInformationIcon());
+            // Create the HTTP request
+            HttpClient client = HttpClient.newHttpClient();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.openai.com/v1/chat/completions"))
+                    .header("Content-Type", "application/json")
+                    .header("Authorization", "Bearer " + apiKey)
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonRequestBody))
+                    .build();
+
+            // Send the request and handle the response
+            return client.sendAsync(request, HttpResponse.BodyHandlers.ofString());
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return null;
     }
 
     @SuppressWarnings("CallToPrintStackTrace")
-    private String ProcessResponseBody(String httpResponse)
-    {
-//        var stringreader = new StringReader(httpResponse);
-//        var bufferedStringReader = new BufferedReader(new StringReader(httpResponse));
-//        var responseContent = new StringBuilder();
+    private String ProcessResponseBody(HttpResponse<String> response) {
+        var responseBody = response.body();
+        System.out.println(response);
 
-        var regex = "\"content\":\\s*\"(.*?)\"";
-        var pattern = Pattern.compile(regex);
-        var matcher = pattern.matcher(httpResponse);
+        try {
+            JSONObject jsonResponse = new JSONObject(responseBody);
+            String content = jsonResponse.getJSONArray("choices")
+                    .getJSONObject(0)
+                    .getJSONObject("message")
+                    .getString("content");
 
-        if(matcher.find())
-        {
-            var matchedSubstring = matcher.group(1);
-            return matchedSubstring;
+            // Write the content to a file named 'temp_small.c'
+            //Files.write(Paths.get("temp_small.c"), content.getBytes(), StandardOpenOption.CREATE);
+
+            //System.out.println("Content written to temp_small.c");
+
+            return content;
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-        else
-            return "no response";
 
-//        int startIndex = httpResponse.indexOf("content");
-//        var substring = httpResponse.substring(startIndex+9);
-//        startIndex = substring.indexOf("\"\"");
-//        substring = substring.substring(0, startIndex);
-
-//        while (true)
-//        {
-//            try
-//            {
-//                var line = bufferedStringReader.readLine();
-//                bufferedStringReader.
-//                var reachedEndOfFile = line == null;
-//                if (reachedEndOfFile)
-//                    break;
-//
-//                if (line.contains("content"))
-//                {
-//                    responseContent.append(line);
-//                    bufferedStringReader.close();
-//                    break;
-//                }
-//
-//            }
-//            catch (IOException exception)
-//            {
-//                exception.printStackTrace();
-//            }
-//        }
-
-        // return substring;
+        return null;
     }
 
-    private void OpenVirtualFileInEditor(HttpResponse<String> response, String basePath, String filename, Project currentProject)
+    private void OpenVirtualFileInEditor(String responseContent, String basePath, String filename, Project currentProject)
     {
         System.out.println("thenAccept: trying to open file");
         var fullFileName = Paths.get(basePath, "temp_" + filename);
         System.out.println(fullFileName);
-        var responseBody = response.body();
-        System.out.println(response);
-        var responseContent = ProcessResponseBody(responseBody);
-        System.out.println(responseContent);
+
 
         try {
             BufferedWriter writer = new BufferedWriter(new FileWriter(fullFileName.toFile()));
@@ -296,9 +272,17 @@ public class CodebookAction extends AnAction {
         {
 
          this.buttonBuilder.putPanelInToolWindow(this.buttonBuilder.setUpChoiceButtons(fullFileName.toString(),this.pathToOriginal));
+
             vFileArr.forEach(vf -> {
                 var descriptor = new OpenFileDescriptor (currentProject, vf);
-                fileEditorManager.openTextEditor(descriptor, true);
+                var edit = fileEditorManager.openTextEditor(descriptor, true);
+
+                System.out.println("trying to reformat file:");
+                var psiFile = PsiManager.getInstance(currentProject).findFile(vf);
+                if(psiFile != null)
+                    new ReformatCodeProcessor(psiFile, true).run();
+                else
+                    System.out.println("couldn't open file, can't reformat.");
             });
         }
         else
