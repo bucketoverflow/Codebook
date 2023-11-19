@@ -85,7 +85,7 @@ public class CodebookButtonBuilder implements ToolWindowFactory{
             });
             ButtonPanel.add(this.analyzeButton, BorderLayout.CENTER);
 
-            JLabel analyzeLabel = new JLabel("Click Button to analyze");
+            JLabel analyzeLabel = new JLabel("Click Button to analyse");
             labelPanel.add(analyzeLabel,BorderLayout.CENTER);
 
 
@@ -98,7 +98,7 @@ public class CodebookButtonBuilder implements ToolWindowFactory{
         public JPanel setUpWaitingLabel () {
             this.classToolWindow.getContentManager().removeAllContents(true);
             JPanel panel = new JPanel(new BorderLayout());
-            JLabel waiting = new JLabel("Analyzing...");
+            JLabel waiting = new JLabel("Analysing...");
 
             panel.add(waiting, BorderLayout.CENTER);
 

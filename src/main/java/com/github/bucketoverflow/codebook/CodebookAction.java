@@ -275,11 +275,7 @@ public class CodebookAction extends AnAction {
 
                 System.out.println("trying to reformat file:");
                 CommentFormatter.formatCommentsInFile(fullFileName.toString());
-//                var psiFile = PsiManager.getInstance(currentProject).findFile(vf);
-//                if(psiFile != null)
-//                    new ReformatCodeProcessor(psiFile, true).run();
-//                else
-//                    System.out.println("couldn't open file, can't reformat.");
+
             });
         }
         else

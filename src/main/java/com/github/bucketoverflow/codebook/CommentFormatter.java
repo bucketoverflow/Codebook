@@ -8,7 +8,7 @@ public class CommentFormatter {
         try {
             File file = new File(filePath);
             BufferedReader reader = new BufferedReader(new FileReader(file));
-            BufferedWriter writer = new BufferedWriter(new FileWriter(file + ".formatted.c"));
+            BufferedWriter writer = new BufferedWriter(new FileWriter(file +"_formatted"));
 
             String line;
             while ((line = reader.readLine()) != null) {
