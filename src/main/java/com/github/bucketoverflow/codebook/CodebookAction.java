@@ -275,6 +275,7 @@ public class CodebookAction extends AnAction {
 
                 System.out.println("trying to reformat file:");
                 CommentFormatter.formatCommentsInFile(fullFileName.toString());
+                VfsUtil.markDirtyAndRefresh(false, false, true, folder);
 
             });
         }
